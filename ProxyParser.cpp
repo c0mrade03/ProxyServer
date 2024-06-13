@@ -61,3 +61,31 @@ int parsedHeaderSet(ParsedRequest *request, std::string key, std::string value)
 
   return 0;
 }
+
+ParsedHeader *parsedHeaderGet(ParsedRequest *request, std::string key)
+{
+  size_t i = 0;
+  ParsedHeader *temp;
+  while (i < request->headersUsed)
+  {
+    temp = &(request->headers[i]);
+    if (temp->key == key)
+    {
+      return temp;
+    }
+    i++;
+  }
+  return nullptr;
+}
+
+int parsedHeaderRemove(ParsedRequest *request, std::string key)
+{
+  ParsedHeader *temp = parsedHeaderGet(request, key);
+  if (temp == nullptr)
+  {
+    return -1;
+  }
+  delete temp;
+  return 0;
+}
+
