@@ -5,11 +5,13 @@
 #include <utility>
 #include <cerrno>
 #include <cctype>
+#include<cstring>
 
 #define DEBUG 1
 
 class ParsedRequest
 {
+public:
   std::string method;
   std::string protocol;
   std::string host;
@@ -24,6 +26,7 @@ class ParsedRequest
 
 class ParsedHeader
 {
+public:
   std::string key;
   size_t keyLength;
   std::string value;
@@ -51,4 +54,3 @@ int parsedHeaderSet(ParsedRequest *request, std::string key, std::string value);
 int parsedHeaderRemove(ParsedRequest *request, std::string key);
 
 void debug(std::string format, ...);
-
