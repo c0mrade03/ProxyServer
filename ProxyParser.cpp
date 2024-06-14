@@ -160,3 +160,73 @@ int parsedHeaderPrintHeaders(ParsedRequest *request, std::string &buffer, size_t
   buffer += "\r\n";
   return 0;
 }
+
+void parsedHeaderDestroyOne(ParsedHeader *header)
+{
+  header->key.clear();
+  header->value.clear();
+  header->keyLength = 0;
+  header->valueLength = 0;
+}
+
+void parsedHeaderDestroy(ParsedRequest *request)
+{
+  size_t i = 0;
+  while (i < request->headersUsed)
+  {
+    parsedHeaderDestroyOne(&(request->headers[i]));
+    i++;
+  }
+  request->headersUsed = 0;
+  request->headersLength = 0;
+  delete[] request->headers;
+  request->headers = nullptr;
+}
+
+int parsedHeaderParse(ParsedRequest *request, std::string &line)
+{
+  std::string key;
+  std::string value;
+  size_t index1;
+  size_t index2;
+
+  index1 = line.find(":");
+  if (index1 == std::string::npos)
+  {
+    debug("No colon found\n");
+    return -1;
+  }
+
+  key = line.substr(0, index1);
+  index1 += 2;
+  index2 = line.find("\r\n", index1);
+  value = line.substr(index1, index2 - index1);
+  parsedHeaderSet(request, key, value);
+  return 0;
+}
+
+void parsedRequestDestroy(ParsedRequest *request)
+{
+  if (request->headersLength > 0)
+  {
+    parsedHeaderDestroy(request);
+  }
+  delete request;
+}
+
+ParsedRequest *parsedRequestCreate()
+{
+  ParsedRequest *request = new ParsedRequest();
+  if (request != nullptr)
+  {
+    parsedHeaderCreate(request);
+    request->method = "";
+    request->protocol = "";
+    request->host = "";
+    request->path = "";
+    request->buffer = "";
+    request->bufferLength = 0;
+  }
+  return request;
+}
+
