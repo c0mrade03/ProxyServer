@@ -6,6 +6,7 @@
 #include <cerrno>
 #include <cctype>
 #include <cstring>
+#include <sstream>
 
 #define DEBUG 1
 
@@ -17,6 +18,7 @@ public:
   std::string host;
   std::string port;
   std::string path;
+  std::string version;
   std::string buffer;
   size_t bufferLength;
   ParsedHeader *headers;
