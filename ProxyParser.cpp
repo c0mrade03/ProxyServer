@@ -1,8 +1,8 @@
 #include "ProxyParser.h"
 
 #define DEFAULT_NO_HEADERS 8
-#define MAX_REQ_LENGTH
-#define MIN_REQ_LENGTH
+#define MAX_REQ_LENGTH 65535
+#define MIN_REQ_LENGTH 4
 
 static std::string rootAbsPath = "/";
 
@@ -187,8 +187,8 @@ int parsedHeaderParse(ParsedRequest *request, std::string &line)
 {
   std::string key;
   std::string value;
-  size_t index1;
-  size_t index2;
+  int index1;
+  int index2;
 
   index1 = line.find(":");
   if (index1 == std::string::npos)
@@ -228,5 +228,185 @@ ParsedRequest *parsedRequestCreate()
     request->bufferLength = 0;
   }
   return request;
+}
+
+int parsedRequestUnparse(ParsedRequest *request, std::string &buffer, size_t bufferLength)
+{
+  if (!request || request->buffer.empty())
+  {
+    return -1;
+  }
+
+  size_t temp;
+  if (parsedRequestPrintRequestLine(request, buffer, bufferLength, &temp) < 0)
+  {
+    return -1;
+  }
+
+  if (parsedHeaderPrintHeaders(request, buffer, bufferLength - temp) < 0)
+  {
+    return -1;
+  }
+
+  return 0;
+}
+
+int parsedRequestUnparseHeaders(ParsedRequest *request, std::string &buffer, size_t bufferLength)
+{
+  if (!request || request->buffer.empty())
+  {
+    return -1;
+  }
+
+  if (parsedHeaderPrintHeaders(request, buffer, bufferLength) < 0)
+  {
+    return -1;
+  }
+
+  return 0;
+}
+
+size_t parsedRequestTotalLength(ParsedRequest *request)
+{
+  if (request == nullptr || request->buffer.empty())
+  {
+    return 0;
+  }
+
+  return parsedRequestLineLength(request) + parsedHeadersLength(request);
+}
+
+int parsedRequestParse(ParsedRequest *parse, std::string &buffer, int bufferLength)
+{
+  std::string fullAddress;
+  std::string savePointer;
+  int index;
+  std::string currentHeader;
+  if (!parse->buffer.empty())
+  {
+    debug("Parse Object already assigned to a request\n");
+    return -1;
+  }
+
+  if (bufferLength < MIN_REQ_LENGTH || bufferLength > MAX_REQ_LENGTH)
+  {
+    debug("Invalid Buffer Length: ", bufferLength);
+    return -1;
+  }
+
+  std::string tempBuffer = buffer;
+  index = tempBuffer.find("\r\n\r\n");
+  if (index == std::string::npos)
+  {
+    debug("Invalid request line, No end of header found");
+    return -1;
+  }
+
+  index = tempBuffer.find("\r\n");
+  parse->buffer = tempBuffer.substr(0, index);
+  parse->bufferLength = parse->buffer.size();
+
+  std::istringstream iss(parse->buffer);
+  if (!(iss >> parse->method))
+  {
+    debug("invalid request line, no whitespace\n");
+    return -1;
+  }
+  if (parse->method != "GET")
+  {
+    debug("invalid request line, method not 'GET': " + parse->method + "\n");
+    return -1;
+  }
+
+  iss >> fullAddress;
+  if (iss.fail())
+  {
+    debug("invalid request line, no full address\n");
+    return -1;
+  }
+  parse->version = fullAddress.substr(fullAddress.find_last_of(' ') + 1);
+  if (parse->version.empty())
+  {
+    debug("invalid request line, missing version\n");
+    return -1;
+  }
+  if (parse->version.substr(0, 5) != "HTTP/")
+  {
+    debug("invalid request line, unsupported version " + parse->version + "\n");
+    return -1;
+  }
+
+  size_t protocolEnd = fullAddress.find("://");
+  if (protocolEnd == std::string::npos)
+  {
+    debug("invalid request line, missing host\n");
+    return -1;
+  }
+  parse->protocol = fullAddress.substr(0, protocolEnd);
+
+  std::string remaining = fullAddress.substr(protocolEnd + 3);
+  size_t absUriLen = remaining.length();
+
+  parse->host = remaining.substr(0, remaining.find("/"));
+  if (parse->host.empty())
+  {
+    debug("invalid request line, missing host\n");
+    return -1;
+  }
+
+  if (parse->host.length() == absUriLen)
+  {
+    debug("invalid request line, missing absolute path\n");
+    return -1;
+  }
+
+  parse->path = remaining.substr(parse->host.length());
+  if (parse->path.empty())
+  {
+    parse->path = rootAbsPath;
+  }
+  else if (parse->path.substr(0, rootAbsPath.size()) == rootAbsPath)
+  {
+    debug("invalid request line, path cannot begin with two slash characters\n");
+    return -1;
+  }
+  else
+  {
+    parse->path = rootAbsPath + parse->path;
+  }
+
+  size_t colonPos = parse->host.find(':');
+  if (colonPos != std::string::npos)
+  {
+    std::string portString = parse->host.substr(colonPos + 1);
+    parse->host = parse->host.substr(0, colonPos);
+    if (!portString.empty())
+    {
+      int port = std::stoi(portString);
+      if (port == 0 && errno == EINVAL)
+      {
+        debug("invalid request line, bad port: " + portString + "\n");
+        return -1;
+      }
+      parse->port = port;
+    }
+  }
+
+  size_t headerStart = buffer.find("\r\n") + 2;
+  size_t headerEnd = buffer.find("\r\n\r\n");
+  while (headerStart < headerEnd)
+  {
+    size_t lineEnd = buffer.find("\r\n", headerStart);
+    if (lineEnd == std::string::npos)
+      break;
+    std::string line = buffer.substr(headerStart, lineEnd - headerStart);
+    if (parsedHeaderParse(parse, line))
+    {
+      return -1;
+    }
+    headerStart = lineEnd + 2;
+  }
+
+  return 0;
 }
 
