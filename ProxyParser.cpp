@@ -410,3 +410,45 @@ int parsedRequestParse(ParsedRequest *parse, std::string &buffer, int bufferLeng
   return 0;
 }
 
+size_t parsedRequestLineLength(ParsedRequest *request)
+{
+  if (!request || request->buffer.empty())
+  {
+    return 0;
+  }
+
+  size_t length = request->method.size() + 1 + request->protocol.size() + 3 + request->host.size() + 1 + request->version.size() + 2;
+  if (!request->port.empty())
+  {
+    length += request->port.size() + 1;
+  }
+  length += request->path.size();
+  return length;
+}
+
+int parsedRequestPrintRequestLine(ParsedRequest *request, std::string &buffer, size_t bufferLength, size_t *temp)
+{
+  std::string current = buffer;
+  if (bufferLength < parsedRequestLineLength(request))
+  {
+    debug("Not enough memory for first line\n");
+    return -1;
+  }
+  current += request->method;
+  current += " ";
+  current += request->protocol;
+  current += "://";
+  current += request->host;
+  if (!request->port.empty())
+  {
+    current += ":";
+    current += request->port;
+  }
+  current += request->path;
+  current += " ";
+  current += request->version;
+  current += "\r\n";
+  *temp = current.size();
+  return 0;
+}
+
