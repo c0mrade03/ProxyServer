@@ -1,4 +1,4 @@
-#include "ProxyParser.h"
+#include "ProxyParserFailed.h"
 
 #define DEFAULT_NO_HEADERS 8
 #define MAX_REQ_LENGTH 65535
