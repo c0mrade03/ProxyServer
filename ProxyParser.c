@@ -1,14 +1,13 @@
 #include "ProxyParser.h"
 
 #define DEFAULT_NO_HEADERS 8
-#define MAX_REQ_LENGTH 65535
-#define MIN_REQ_LENGTH 4
+#define MAX_REQ_LEN 65535
+#define MIN_REQ_LEN 4
 
 static const char *rootAbsPath = "/";
 
-int parsedRequestPrintRequestLine(struct ParsedRequest *request,
-                                  char *buffer, size_t bufferLength,
-                                  size_t *temp);
+int parsedRequestPrintRequestLine(struct ParsedRequest *request, char *buffer, size_t bufferLength, size_t *temp);
+
 size_t parsedRequestLineLength(struct ParsedRequest *request);
 
 void debug(const char *format, ...)
@@ -22,40 +21,38 @@ void debug(const char *format, ...)
   }
 }
 
-int parsedHeaderSet(struct ParsedRequest *request,
-                    const char *key, const char *value)
+int parsedHeaderSet(struct ParsedRequest *request, const char *key, const char *value)
 {
-  struct ParsedHeader *newHeader;
+  struct ParsedHeader *ph;
   parsedHeaderRemove(request, key);
 
   if (request->headersLength <= request->headersUsed + 1)
   {
     request->headersLength = request->headersLength * 2;
-    request->headers =
-        (struct ParsedHeader *)realloc(request->headers,
-                                       request->headersLength * sizeof(struct ParsedHeader));
+    request->headers = (struct ParsedHeader *)realloc(request->headers, request->headersLength * sizeof(struct ParsedHeader));
     if (!request->headers)
+    {
       return -1;
+    }
   }
 
-  newHeader = request->headers + request->headersUsed;
+  ph = request->headers + request->headersUsed;
   request->headersUsed += 1;
 
-  newHeader->key = (char *)malloc(strlen(key) + 1);
-  memcpy(newHeader->key, key, strlen(key));
-  newHeader->key[strlen(key)] = '\0';
+  ph->key = (char *)malloc(strlen(key) + 1);
+  memcpy(ph->key, key, strlen(key));
+  ph->key[strlen(key)] = '\0';
 
-  newHeader->value = (char *)malloc(strlen(value) + 1);
-  memcpy(newHeader->value, value, strlen(value));
-  newHeader->value[strlen(value)] = '\0';
+  ph->value = (char *)malloc(strlen(value) + 1);
+  memcpy(ph->value, value, strlen(value));
+  ph->value[strlen(value)] = '\0';
 
-  newHeader->keyLength = strlen(key) + 1;
-  newHeader->valueLength = strlen(value) + 1;
+  ph->keyLength = strlen(key) + 1;
+  ph->valueLength = strlen(value) + 1;
   return 0;
 }
 
-struct ParsedHeader *parsedHeaderGet(struct ParsedRequest *request,
-                                     const char *key)
+struct ParsedHeader *parsedHeaderGet(struct ParsedRequest *request, const char *key)
 {
   size_t i = 0;
   struct ParsedHeader *temp;
@@ -76,7 +73,9 @@ int parsedHeaderRemove(struct ParsedRequest *request, const char *key)
   struct ParsedHeader *temp;
   temp = parsedHeaderGet(request, key);
   if (temp == NULL)
+  {
     return -1;
+  }
 
   free(temp->key);
   free(temp->value);
@@ -86,8 +85,7 @@ int parsedHeaderRemove(struct ParsedRequest *request, const char *key)
 
 void parsedHeaderCreate(struct ParsedRequest *request)
 {
-  request->headers =
-      (struct ParsedHeader *)malloc(sizeof(struct ParsedHeader) * DEFAULT_NO_HEADERS);
+  request->headers = (struct ParsedHeader *)malloc(sizeof(struct ParsedHeader) * DEFAULT_NO_HEADERS);
   request->headersLength = DEFAULT_NO_HEADERS;
   request->headersUsed = 0;
 }
@@ -104,27 +102,28 @@ size_t parsedHeaderLineLength(struct ParsedHeader *header)
 size_t parsedHeadersLength(struct ParsedRequest *request)
 {
   if (!request || !request->buffer)
+  {
     return 0;
+  }
 
   size_t i = 0;
-  int len = 0;
+  int length = 0;
   while (request->headersUsed > i)
   {
-    len += parsedHeaderLineLength(request->headers + i);
+    length += parsedHeaderLineLength(request->headers + i);
     i++;
   }
-  len += 2;
-  return len;
+  length += 2;
+  return length;
 }
 
-int parsedHeaderPrintHeaders(struct ParsedRequest *request, char *buffer,
-                             size_t len)
+int parsedHeaderPrintHeaders(struct ParsedRequest *request, char *buffer, size_t length)
 {
   char *current = buffer;
   struct ParsedHeader *header;
   size_t i = 0;
 
-  if (len < parsedHeadersLength(request))
+  if (length < parsedHeadersLength(request))
   {
     debug("buffer for printing headers too small\n");
     return -1;
@@ -137,10 +136,8 @@ int parsedHeaderPrintHeaders(struct ParsedRequest *request, char *buffer,
     {
       memcpy(current, header->key, strlen(header->key));
       memcpy(current + strlen(header->key), ": ", 2);
-      memcpy(current + strlen(header->key) + 2, header->value,
-             strlen(header->value));
-      memcpy(current + strlen(header->key) + 2 + strlen(header->value),
-             "\r\n", 2);
+      memcpy(current + strlen(header->key) + 2, header->value, strlen(header->value));
+      memcpy(current + strlen(header->key) + 2 + strlen(header->value), "\r\n", 2);
       current += strlen(header->key) + strlen(header->value) + 4;
     }
     i++;
@@ -241,40 +238,48 @@ struct ParsedRequest *parsedRequestCreate()
   return request;
 }
 
-int parsedRequestUnparse(struct ParsedRequest *request, char *buffer,
-                         size_t bufferLength)
+int parsedRequestUnparse(struct ParsedRequest *request, char *buffer, size_t bufferLength)
 {
   if (!request || !request->buffer)
+  {
     return -1;
+  }
 
   size_t temp;
   if (parsedRequestPrintRequestLine(request, buffer, bufferLength, &temp) < 0)
+  {
     return -1;
+  }
   if (parsedHeaderPrintHeaders(request, buffer + temp, bufferLength - temp) < 0)
+  {
     return -1;
+  }
   return 0;
 }
 
-int parsedRequestUnparseHeaders(struct ParsedRequest *request, char *buffer,
-                                size_t bufferLength)
+int parsedRequestUnparseHeaders(struct ParsedRequest *request, char *buffer, size_t bufferLength)
 {
   if (!request || !request->buffer)
+  {
     return -1;
-
+  }
   if (parsedHeaderPrintHeaders(request, buffer, bufferLength) < 0)
+  {
     return -1;
+  }
   return 0;
 }
 
 size_t parsedRequestTotalLength(struct ParsedRequest *request)
 {
   if (!request || !request->buffer)
+  {
     return 0;
+  }
   return parsedRequestLineLength(request) + parsedHeadersLength(request);
 }
 
-int parsedRequestParse(struct ParsedRequest *parse, const char *buffer,
-                       int bufferLength)
+int parsedRequestParse(struct ParsedRequest *parse, const char *buffer, int bufferLength)
 {
   char *fullAddress;
   char *saveptr;
@@ -287,9 +292,9 @@ int parsedRequestParse(struct ParsedRequest *parse, const char *buffer,
     return -1;
   }
 
-  if (bufferLength < MIN_REQ_LENGTH || bufferLength > MAX_REQ_LENGTH)
+  if (bufferLength < MIN_REQ_LEN || bufferLength > MAX_REQ_LEN)
   {
-    debug("invalid bufferLength %d", bufferLength);
+    debug("invalid buffer length %d", bufferLength);
     return -1;
   }
 
@@ -325,8 +330,7 @@ int parsedRequestParse(struct ParsedRequest *parse, const char *buffer,
   }
   if (strcmp(parse->method, "GET"))
   {
-    debug("invalid request line, method not 'GET': %s\n",
-          parse->method);
+    debug("invalid request line, method not 'GET': %s\n", parse->method);
     free(tempBuffer);
     free(parse->buffer);
     parse->buffer = NULL;
@@ -356,8 +360,7 @@ int parsedRequestParse(struct ParsedRequest *parse, const char *buffer,
   }
   if (strncmp(parse->version, "HTTP/", 5))
   {
-    debug("invalid request line, unsupported version %s\n",
-          parse->version);
+    debug("invalid request line, unsupported version %s\n", parse->version);
     free(tempBuffer);
     free(parse->buffer);
     parse->buffer = NULL;
@@ -375,7 +378,7 @@ int parsedRequestParse(struct ParsedRequest *parse, const char *buffer,
   }
 
   const char *rem = fullAddress + strlen(parse->protocol) + strlen("://");
-  size_t absUriLen = strlen(rem);
+  size_t absUriLength = strlen(rem);
 
   parse->host = strtok_r(NULL, "/", &saveptr);
   if (parse->host == NULL)
@@ -387,7 +390,7 @@ int parsedRequestParse(struct ParsedRequest *parse, const char *buffer,
     return -1;
   }
 
-  if (strlen(parse->host) == absUriLen)
+  if (strlen(parse->host) == absUriLength)
   {
     debug("invalid request line, missing absolute path\n");
     free(tempBuffer);
@@ -405,8 +408,7 @@ int parsedRequestParse(struct ParsedRequest *parse, const char *buffer,
   }
   else if (strncmp(parse->path, rootAbsPath, strlen(rootAbsPath)) == 0)
   {
-    debug("invalid request line, path cannot begin "
-          "with two slash characters\n");
+    debug("invalid request line, path cannot begin ", "with two slash characters\n");
     free(tempBuffer);
     free(parse->buffer);
     parse->buffer = NULL;
@@ -454,8 +456,7 @@ int parsedRequestParse(struct ParsedRequest *parse, const char *buffer,
 
   int ret = 0;
   currentHeader = strstr(tempBuffer, "\r\n") + 2;
-  while (currentHeader[0] != '\0' &&
-         !(currentHeader[0] == '\r' && currentHeader[1] == '\n'))
+  while (currentHeader[0] != '\0' && !(currentHeader[0] == '\r' && currentHeader[1] == '\n'))
   {
 
     if (parsedHeaderParse(parse, currentHeader))
@@ -466,8 +467,9 @@ int parsedRequestParse(struct ParsedRequest *parse, const char *buffer,
 
     currentHeader = strstr(currentHeader, "\r\n");
     if (currentHeader == NULL || strlen(currentHeader) < 2)
+    {
       break;
-
+    }
     currentHeader += 2;
   }
   free(tempBuffer);
@@ -477,22 +479,20 @@ int parsedRequestParse(struct ParsedRequest *parse, const char *buffer,
 size_t parsedRequestLineLength(struct ParsedRequest *request)
 {
   if (!request || !request->buffer)
+  {
     return 0;
-
-  size_t len =
-      strlen(request->method) + 1 + strlen(request->protocol) + 3 +
-      strlen(request->host) + 1 + strlen(request->version) + 2;
+  }
+  size_t len = strlen(request->method) + 1 + strlen(request->protocol) + 3 + strlen(request->host) + 1 + strlen(request->version) + 2;
   if (request->port != NULL)
   {
     len += strlen(request->port) + 1;
   }
+
   len += strlen(request->path);
   return len;
 }
 
-int parsedRequestPrintRequestLine(struct ParsedRequest *request,
-                                  char *buffer, size_t bufferLength,
-                                  size_t *temp)
+int parsedRequestPrintRequestLine(struct ParsedRequest *request, char *buffer, size_t bufferLength, size_t *temp)
 {
   char *current = buffer;
 
@@ -519,6 +519,7 @@ int parsedRequestPrintRequestLine(struct ParsedRequest *request,
     memcpy(current, request->port, strlen(request->port));
     current += strlen(request->port);
   }
+
   memcpy(current, request->path, strlen(request->path));
   current += strlen(request->path);
 
